@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 
 app = Flask(__name__)
+app.version = '1.1.0'  # Version bump to trigger redeploy
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-this')  # Use env var in production
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
