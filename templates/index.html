@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}ML Competition Platform{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 50px 0;">
+    <h1 style="font-size: 48px; margin-bottom: 20px;">🎯 Predict-It</h1>
+    <p style="font-size: 18px; color: #666; margin-bottom: 40px;">
+        Submit your predictions, get instant feedback, rank on the leaderboard
+    </p>
+    
+    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+        <a href="{{ url_for('login') }}" class="btn btn-primary" style="font-size: 16px; padding: 15px 40px;">
+            Student Login
+        </a>
+        <a href="{{ url_for('register') }}" class="btn btn-secondary" style="font-size: 16px; padding: 15px 40px;">
+            Register
+        </a>
+        <a href="{{ url_for('admin_login') }}" class="btn btn-secondary" style="font-size: 16px; padding: 15px 40px;">
+            Admin Login
+        </a>
+    </div>
+</div>
+{% endblock %}
