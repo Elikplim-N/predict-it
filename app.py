@@ -438,6 +438,47 @@ def upload_ground_truth():
     flash('Ground truth uploaded successfully', 'success')
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/export_results')
+def export_results():
+    """Export leaderboard as CSV"""
+    if 'admin_id' not in session or session.get('user_type') != 'admin':
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    conn = sqlite3.connect('competition.db')
+    c = conn.cursor()
+    
+    # Get leaderboard data
+    c.execute("""
+        SELECT u.student_index, u.name, MIN(s.rmse) as best_rmse, 
+               COUNT(s.id) as submission_count,
+               MAX(s.submission_date) as last_submission
+        FROM users u
+        LEFT JOIN submissions s ON u.id = s.user_id
+        WHERE s.rmse IS NOT NULL
+        GROUP BY u.id
+        ORDER BY best_rmse ASC
+    """)
+    results = c.fetchall()
+    conn.close()
+    
+    # Create CSV content
+    csv_data = "Rank,Student Index,Name,Best RMSE,Submissions,Last Submission\n"
+    for idx, (student_index, name, best_rmse, submission_count, last_submission) in enumerate(results, 1):
+        csv_data += f"{idx},{student_index},\"{name}\",{best_rmse:.6f},{submission_count},{last_submission}\n"
+    
+    # Return as downloadable file
+    from io import BytesIO
+    output = BytesIO()
+    output.write(csv_data.encode('utf-8'))
+    output.seek(0)
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return app.response_class(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename=predict-it-results-{timestamp}.csv"}
+    )
+
 @app.route('/logout')
 def logout():
     """Logout"""
