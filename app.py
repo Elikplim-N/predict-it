@@ -56,11 +56,14 @@ def init_db():
                   setting_value TEXT)''')
     
     # Create default admin if not exists
-    c.execute("SELECT * FROM admin WHERE username = 'isaaceinst3in'")
+    admin_username = os.environ.get('ADMIN_USERNAME', 'isaaceinst3in')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'predict-it-2024')
+    
+    c.execute("SELECT * FROM admin WHERE username = ?", (admin_username,))
     if not c.fetchone():
-        admin_hash = generate_password_hash('12zaci')
+        admin_hash = generate_password_hash(admin_password)
         c.execute("INSERT INTO admin (username, password_hash) VALUES (?, ?)", 
-                  ('isaaceinst3in', admin_hash))
+                  (admin_username, admin_hash))
     
     conn.commit()
     conn.close()
