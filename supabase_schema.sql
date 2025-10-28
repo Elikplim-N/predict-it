@@ -50,15 +50,15 @@ CREATE INDEX IF NOT EXISTS idx_ground_truth_active ON ground_truth(is_active);
 -- Create leaderboard view for efficient queries
 CREATE OR REPLACE VIEW leaderboard_view AS
 SELECT 
-    u.student_index,
-    u.name,
-    MIN(s.rmse) as best_rmse,
-    COUNT(s.id) as submission_count,
-    MAX(s.submission_date) as last_submission
-FROM users u
-LEFT JOIN submissions s ON u.id = s.user_id
-WHERE s.rmse IS NOT NULL
-GROUP BY u.id, u.student_index, u.name
+    users.student_index,
+    users.name,
+    MIN(submissions.rmse) as best_rmse,
+    COUNT(submissions.id) as submission_count,
+    MAX(submissions.submission_date) as last_submission
+FROM users
+LEFT JOIN submissions ON users.id = submissions.user_id
+WHERE submissions.rmse IS NOT NULL
+GROUP BY users.id, users.student_index, users.name
 ORDER BY best_rmse ASC;
 
 -- Insert default admin user (change password in production!)
