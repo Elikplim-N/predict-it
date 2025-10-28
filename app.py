@@ -65,6 +65,13 @@ def init_db():
         ''')
         db.commit()
 
+@app.before_request
+def before_first_request():
+    """Initialize database on first request"""
+    if not hasattr(g, 'db_initialized'):
+        init_db()
+        g.db_initialized = True
+
 @app.route('/')
 def index():
     db = get_db()
@@ -280,8 +287,6 @@ def calculate_score(predictions_csv, ground_truth_csv, metric):
 
 
 if __name__ == '__main__':
-    # Initialize database
-    init_db()
     # Use PORT from environment or default to 5000
     port = int(os.environ.get('PORT', 5000))
     # Bind to 0.0.0.0 to accept external connections
