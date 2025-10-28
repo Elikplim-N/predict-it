@@ -69,6 +69,8 @@
                         <td>
                             <a href="{{ url_for('leaderboard', test_id=test.id) }}" class="btn btn-small">View Leaderboard</a>
                             <button onclick="copyTestLink({{ test.id }})" class="btn btn-small" style="margin-left: 5px;">Copy Link</button>
+                            <a href="{{ url_for('edit_test', test_id=test.id) }}" class="btn btn-small" style="margin-left: 5px;">Edit</a>
+                            <button onclick="deleteTest({{ test.id }}, '{{ test.name }}')", class="btn btn-small" style="margin-left: 5px; background: #dc3545;">Delete</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -88,6 +90,20 @@ function copyTestLink(testId) {
     }).catch(err => {
         alert('Link: ' + link);
     });
+}
+
+function deleteTest(testId, testName) {
+    if (confirm('Are you sure you want to delete "' + testName + '"?\n\nThis will also delete all submissions for this test. This action cannot be undone.')) {
+        fetch('/admin/delete_test/' + testId, {
+            method: 'POST'
+        }).then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('Failed to delete test.');
+            }
+        });
+    }
 }
 </script>
 {% endblock %}

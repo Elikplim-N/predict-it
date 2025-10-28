@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Test{% endblock %}
+
+{% block content %}
+<h1>Edit Test: {{ test.name }}</h1>
+
+<div class="admin-section">
+    <form method="POST" action="{{ url_for('edit_test', test_id=test.id) }}" enctype="multipart/form-data" class="admin-form">
+        <div class="form-group">
+            <label for="name">Test Name:</label>
+            <input type="text" id="name" name="name" value="{{ test.name }}" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" rows="4" required>{{ test.description }}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="start_date">Start Date:</label>
+            <input type="date" id="start_date" name="start_date" value="{{ test.start_date }}" required>
+        </div>
+        <div class="form-group">
+            <label for="end_date">End Date:</label>
+            <input type="date" id="end_date" name="end_date" value="{{ test.end_date }}" required>
+        </div>
+        <div class="form-group">
+            <label for="metric">Evaluation Metric:</label>
+            <select id="metric" name="metric" required>
+                <option value="accuracy" {% if test.metric == 'accuracy' %}selected{% endif %}>Accuracy</option>
+                <option value="rmse" {% if test.metric == 'rmse' %}selected{% endif %}>RMSE</option>
+                <option value="mae" {% if test.metric == 'mae' %}selected{% endif %}>MAE</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="ground_truth">Ground Truth CSV (optional - leave empty to keep current):</label>
+            <input type="file" id="ground_truth" name="ground_truth" accept=".csv">
+            <small>CSV format: first column as ID, second column as target (with headers)</small>
+        </div>
+        <div style="margin-top: 20px;">
+            <button type="submit" class="btn">Update Test</button>
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary" style="margin-left: 10px;">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

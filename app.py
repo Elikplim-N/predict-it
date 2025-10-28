@@ -255,6 +255,65 @@ def create_test():
     flash('Test created successfully!')
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/delete_test/<int:test_id>', methods=['POST'])
+def delete_test(test_id):
+    if not session.get('is_admin'):
+        return redirect(url_for('login'))
+    
+    db = get_db_wrapper()
+    # Delete submissions first (foreign key constraint)
+    db.execute('DELETE FROM submissions WHERE test_id = ?', (test_id,))
+    # Delete the test
+    db.execute('DELETE FROM tests WHERE id = ?', (test_id,))
+    db.commit()
+    
+    flash('Test deleted successfully!')
+    return '', 200
+
+@app.route('/admin/edit_test/<int:test_id>', methods=['GET', 'POST'])
+def edit_test(test_id):
+    if not session.get('is_admin'):
+        return redirect(url_for('login'))
+    
+    db = get_db_wrapper()
+    
+    if request.method == 'POST':
+        name = request.form['name']
+        description = request.form['description']
+        start_date = request.form['start_date']
+        end_date = request.form['end_date']
+        metric = request.form['metric']
+        
+        # Handle ground truth file upload (optional on edit)
+        ground_truth = None
+        if 'ground_truth' in request.files:
+            file = request.files['ground_truth']
+            if file and file.filename.endswith('.csv'):
+                ground_truth = file.read().decode('utf-8')
+                # Update with new ground truth
+                db.execute('UPDATE tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ?, ground_truth = ? WHERE id = ?',
+                           (name, description, start_date, end_date, metric, ground_truth, test_id))
+            else:
+                # Update without changing ground truth
+                db.execute('UPDATE tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ? WHERE id = ?',
+                           (name, description, start_date, end_date, metric, test_id))
+        else:
+            # Update without changing ground truth
+            db.execute('UPDATE tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ? WHERE id = ?',
+                       (name, description, start_date, end_date, metric, test_id))
+        
+        db.commit()
+        flash('Test updated successfully!')
+        return redirect(url_for('admin_dashboard'))
+    
+    # GET request - show edit form
+    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    if not test:
+        flash('Test not found')
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('edit_test.html', test=test)
+
 @app.route('/test/<int:test_id>')
 def test_detail(test_id):
     db = get_db_wrapper()
