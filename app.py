@@ -23,8 +23,12 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
 USE_POSTGRES = DATABASE_URL is not None
 
 if USE_POSTGRES:
-    import psycopg2
-    import psycopg2.extras
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except ImportError:
+        print("WARNING: psycopg2 not available, falling back to SQLite")
+        USE_POSTGRES = False
 
 def get_db():
     db = getattr(g, '_database', None)
