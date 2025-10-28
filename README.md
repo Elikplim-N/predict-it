@@ -1,182 +1,169 @@
-# ML Competition Platform
+# ML Competition Platform (Serverless)
 
-A web application for conducting ML prediction competitions in your class. Students can upload CSV predictions, get RMSE scores, and compete on a leaderboard.
+A fully serverless machine learning competition platform with inline RMSE calculation.
 
-## Features
+## 🚀 Features
 
-- **Student Portal**: Register, login, upload predictions, view RMSE scores
-- **Admin Dashboard**: Upload ground truth, view leaderboard, track submissions
-- **RMSE Calculation**: Automatic calculation of Root Mean Squared Error
-- **Multiple Submissions**: Students can submit multiple times to improve their score
-- **Real-time Leaderboard**: Ranked by best RMSE score
-- **Cloud Deployment**: Deploy to Railway, Render, or Heroku for internet access
+- ✅ **Serverless Architecture** - Runs on Vercel + Supabase
+- ✅ **RMSE Calculated in Code** - Pure Python, no external services
+- ✅ **No File System** - CSV data stored in PostgreSQL
+- ✅ **Auto-scaling** - Handles unlimited concurrent users
+- ✅ **CSV Header Validation** - Enforces proper format
+- ✅ **Student Submissions** - Upload predictions and get instant RMSE
+- ✅ **Leaderboard** - Real-time rankings
+- ✅ **Admin Dashboard** - Manage competitions
 
-## Quick Start - Cloud Deployment (Recommended)
+## 📁 Project Structure
 
-For students to access from anywhere:
-
-```bash
-cd ml-competition-platform
-./deploy.sh
+```
+.
+├── api/                          # Serverless API endpoints
+│   ├── auth.py                  # Student authentication
+│   ├── submit.py                # Submission handling
+│   ├── admin.py                 # Admin operations
+│   ├── db_helper.py             # Database utilities
+│   └── rmse_calculator.py       # RMSE calculation
+├── vercel.json                   # Vercel configuration
+├── requirements.txt              # Python dependencies
+├── supabase_schema.sql          # Database schema
+├── generate_admin_hash.py       # Password hash generator
+├── .env.serverless              # Environment template
+└── SERVERLESS_DEPLOY.md         # Deployment guide
 ```
 
-Then follow instructions to deploy on Railway, Render, or Heroku.
+## 🎯 Quick Start
 
-**📖 See [DEPLOYMENT.md](DEPLOYMENT.md) for complete cloud deployment guide**
+### 1. Setup Supabase
 
-## Setup Instructions (Local Network)
+1. Create account at [supabase.com](https://supabase.com)
+2. Create new project
+3. Run `supabase_schema.sql` in SQL Editor
+4. Get your project URL and service role key
 
-### 1. Install Dependencies
-
-```bash
-cd ml-competition-platform
-pip install -r requirements.txt
-```
-
-### 2. Run the Application
+### 2. Generate Admin Password
 
 ```bash
-python app.py
+python3 generate_admin_hash.py
 ```
 
-The application will start on `http://0.0.0.0:5000`
+Copy the generated hash and update in Supabase:
 
-### 3. Find Your IP Address
+```sql
+UPDATE admin 
+SET password_hash = 'your-generated-hash' 
+WHERE username = 'isaaceinst3in';
+```
 
-To allow students on the network to access the platform:
+### 3. Deploy to Vercel
+
+1. Push code to GitHub
+2. Go to [vercel.com](https://vercel.com)
+3. Import your repository
+4. Add environment variables:
+   - `SUPABASE_URL` - Your Supabase project URL
+   - `SUPABASE_KEY` - Your service role key
+   - `SECRET_KEY` - Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
+5. Click Deploy
+
+### 4. Test Your Deployment
 
 ```bash
-# On Linux/Mac
-hostname -I
+# Test admin login
+curl -X POST https://your-project.vercel.app/api/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "isaaceinst3in", "password": "your-password"}'
 
-# On Windows
-ipconfig
+# Test student registration
+curl -X POST https://your-project.vercel.app/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"student_index": "12345", "password": "test123", "name": "Test Student"}'
 ```
 
-Students will access the platform using: `http://YOUR_IP_ADDRESS:5000`
+## 📚 API Endpoints
 
-For example: `http://192.168.1.100:5000`
+### Authentication
+- `POST /api/auth/register` - Register student
+- `POST /api/auth/login` - Student login
+- `POST /api/auth/logout` - Logout
 
-## Usage Guide
+### Student Operations
+- `POST /api/submit` - Submit prediction CSV
+- `GET /api/submissions` - Get your submissions
 
-### For Admin (You)
+### Admin Operations
+- `POST /api/admin/login` - Admin login
+- `GET /api/admin/leaderboard` - Get leaderboard
+- `POST /api/admin/upload_ground_truth` - Upload ground truth
+- `POST /api/admin/configure_columns` - Configure CSV columns
+- `GET /api/admin/settings` - Get settings
+- `GET /api/admin/export` - Export results
 
-1. **Login**
-   - Go to Admin Login
-   - Default credentials:
-     - Username: `admin`
-     - Password: `admin123`
-   - **IMPORTANT**: Change these in `app.py` line 55 before production use!
+## 📋 CSV Format
 
-2. **Upload Ground Truth**
-   - Upload your CSV file with the true values
-   - This is what student predictions will be compared against
-   - CSV format example:
-     ```csv
-     id,value
-     1,0.234
-     2,0.567
-     3,0.891
-     ```
-
-3. **Monitor Leaderboard**
-   - See all students ranked by best RMSE
-   - View submission counts and timestamps
-   - Track competition progress in real-time
-
-### For Students
-
-1. **Register**
-   - Enter student index (e.g., "20210001")
-   - Create a password
-   - Enter full name
-
-2. **Login**
-   - Use student index and password
-
-3. **Upload Predictions**
-   - Upload CSV file with predictions
-   - CSV format should match ground truth:
-     ```csv
-     id,prediction
-     1,0.245
-     2,0.560
-     3,0.895
-     ```
-   - RMSE is calculated immediately
-   - Can submit multiple times to improve score
-
-4. **View Results**
-   - See all your submissions
-   - Track your best RMSE score
-   - View submission history
-
-## CSV File Format
-
-Both student predictions and ground truth must follow this format:
-
-- **Column 1**: `id` (optional, used for alignment)
-- **Column 2**: `prediction` or `value` (the actual numerical values)
-- **Same number of rows** in both files
+**CSV files MUST include column headers.**
 
 Example:
 ```csv
 id,prediction
-1,0.234
-2,0.567
-3,0.891
-4,1.234
+1,10.5
+2,20.3
+3,15.7
 ```
 
-## Network Setup for Class
+## 💡 How RMSE Works
 
-1. **Ensure all students are on the same WiFi network** as your computer
-2. **Check firewall settings** - port 5000 should be open
-3. **Share your IP address** with students (e.g., `192.168.1.100:5000`)
-4. Students can access from any browser on their phones or laptops
+1. Student uploads CSV via API
+2. CSV read into memory (no file system)
+3. Ground truth fetched from database
+4. Pandas + NumPy calculate RMSE: `sqrt(mean((pred - truth)^2))`
+5. Result stored in database
+6. Leaderboard updated
 
-## Troubleshooting
+All happens in a single serverless function!
 
-### Students can't connect
-- Verify you're all on the same network
-- Check firewall isn't blocking port 5000
-- On Linux: `sudo ufw allow 5000`
-- Try accessing from your browser first: `http://localhost:5000`
+## 🔒 Security
 
-### RMSE calculation errors
-- Ensure both CSVs have the same number of rows
-- Check column names (should be 'prediction' or 'value')
-- Verify all values are numeric (no missing values)
+- HTTPS only (automatic with Vercel)
+- Password hashing with Werkzeug
+- Session-based authentication
+- Row Level Security in Supabase
+- Service role key never exposed
 
-### Database issues
-- Delete `competition.db` to reset everything
-- Database is created automatically on first run
+## 💰 Cost
 
-## Security Notes
+**Free Tier:**
+- Vercel: 100GB bandwidth/month
+- Supabase: 500MB database
 
-**For classroom use:**
-- Default admin password should be changed (line 55 in `app.py`)
-- Secret key should be changed (line 11 in `app.py`)
-- This is designed for local network use during class time
-- Not suitable for internet-facing deployment without additional security
+Typical usage for 100 students: **$0/month**
 
-## Data Storage
+## 📖 Documentation
 
-- **Database**: SQLite (`competition.db`)
-- **Uploaded files**: `uploads/` directory
-- **All data is stored locally** on your machine
+See [SERVERLESS_DEPLOY.md](SERVERLESS_DEPLOY.md) for detailed deployment instructions.
 
-## Resetting for a New Competition
+## 🆘 Troubleshooting
 
-1. Stop the application (Ctrl+C)
-2. Delete `competition.db`
-3. Delete files in `uploads/` directory
-4. Restart the application
+**Database connection issues?**
+- Verify `SUPABASE_URL` and `SUPABASE_KEY`
+- Use service role key (not anon key)
 
-## Support
+**RMSE errors?**
+- Ensure CSV has headers
+- Check column names match configuration
+- Verify numeric values in prediction column
 
-If issues arise during the test:
-1. Check the terminal for error messages
-2. Verify ground truth is uploaded
-3. Confirm CSV formats match requirements
-4. Restart the application if needed
+**Session issues?**
+- Verify `SECRET_KEY` is set
+- Check cookies are enabled
+
+## 🤝 Contributing
+
+This is a serverless version optimized for Vercel + Supabase.
+
+## 📝 License
+
+MIT License
+
+---
+
+**Need help?** Check Vercel function logs and Supabase logs for errors.
