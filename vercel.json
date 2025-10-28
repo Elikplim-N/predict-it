@@ -23,10 +23,5 @@
       "src": "/api/admin/(.*)",
       "dest": "api/admin.py"
     }
-  ],
-  "env": {
-    "SUPABASE_URL": "@supabase-url",
-    "SUPABASE_KEY": "@supabase-key",
-    "SECRET_KEY": "@secret-key"
-  }
+  ]
 }
