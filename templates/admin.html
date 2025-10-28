@@ -68,6 +68,7 @@
                         <td>{{ submissions|selectattr('test_id', 'equalto', test.id)|list|length }}</td>
                         <td>
                             <a href="{{ url_for('leaderboard', test_id=test.id) }}" class="btn btn-small">View Leaderboard</a>
+                            <button onclick="copyTestLink({{ test.id }})" class="btn btn-small" style="margin-left: 5px;">Copy Link</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -78,4 +79,15 @@
         <p>No tests created yet.</p>
     {% endif %}
 </div>
+
+<script>
+function copyTestLink(testId) {
+    const link = window.location.origin + '/test/' + testId;
+    navigator.clipboard.writeText(link).then(() => {
+        alert('Test link copied to clipboard!\n\n' + link + '\n\nShare this link with students.');
+    }).catch(err => {
+        alert('Link: ' + link);
+    });
+}
+</script>
 {% endblock %}
