@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - {{ competition.name }}{% endblock %}
+
+{% block content %}
+<h1>Leaderboard: {{ competition.name }}</h1>
+
+{% if leaderboard %}
+    <div class="table-container">
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Username</th>
+                    <th>Best Score</th>
+                    <th>Submission Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in leaderboard %}
+                <tr {% if entry.username == session.username %}class="highlight"{% endif %}>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ entry.username }}</td>
+                    <td>{{ "%.4f"|format(entry.score) }}</td>
+                    <td>{{ entry.timestamp }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p class="empty-state">No submissions yet. Be the first to compete!</p>
+{% endif %}
+
+<div class="actions">
+    <a href="{{ url_for('competition_detail', comp_id=competition.id) }}" class="btn">Back to Competition</a>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">All Competitions</a>
+</div>
+{% endblock %}

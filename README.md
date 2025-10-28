@@ -1,169 +1,100 @@
-# ML Competition Platform (Serverless)
+# ML Competition Platform
 
-A fully serverless machine learning competition platform with inline RMSE calculation.
+A Flask-based machine learning competition platform that can be deployed to any cloud hosting service.
 
-## 🚀 Features
+## Features
 
-- ✅ **Serverless Architecture** - Runs on Vercel + Supabase
-- ✅ **RMSE Calculated in Code** - Pure Python, no external services
-- ✅ **No File System** - CSV data stored in PostgreSQL
-- ✅ **Auto-scaling** - Handles unlimited concurrent users
-- ✅ **CSV Header Validation** - Enforces proper format
-- ✅ **Student Submissions** - Upload predictions and get instant RMSE
-- ✅ **Leaderboard** - Real-time rankings
-- ✅ **Admin Dashboard** - Manage competitions
+- User registration and authentication
+- Admin dashboard for creating competitions
+- CSV file upload for predictions
+- Multiple evaluation metrics (Accuracy, RMSE, MAE)
+- Leaderboard system
+- Responsive design
 
-## 📁 Project Structure
+## Admin Credentials
 
-```
-.
-├── api/                          # Serverless API endpoints
-│   ├── auth.py                  # Student authentication
-│   ├── submit.py                # Submission handling
-│   ├── admin.py                 # Admin operations
-│   ├── db_helper.py             # Database utilities
-│   └── rmse_calculator.py       # RMSE calculation
-├── vercel.json                   # Vercel configuration
-├── requirements.txt              # Python dependencies
-├── supabase_schema.sql          # Database schema
-├── generate_admin_hash.py       # Password hash generator
-├── .env.serverless              # Environment template
-└── SERVERLESS_DEPLOY.md         # Deployment guide
-```
+- **Username:** `admin`
+- **Password:** `admin123`
 
-## 🎯 Quick Start
-
-### 1. Setup Supabase
-
-1. Create account at [supabase.com](https://supabase.com)
-2. Create new project
-3. Run `supabase_schema.sql` in SQL Editor
-4. Get your project URL and service role key
-
-### 2. Generate Admin Password
+## Local Testing
 
 ```bash
-python3 generate_admin_hash.py
+python app.py
 ```
 
-Copy the generated hash and update in Supabase:
+Visit `http://localhost:5000`
 
-```sql
-UPDATE admin 
-SET password_hash = 'your-generated-hash' 
-WHERE username = 'isaaceinst3in';
+## Deploy to Cloud
+
+### Option 1: Render.com (Recommended - Free Tier Available)
+
+1. Create account at [render.com](https://render.com)
+2. Click "New +" → "Web Service"
+3. Connect your GitHub repository or deploy from this directory
+4. Configure:
+   - **Environment:** Python 3
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn app:app`
+5. Add environment variable:
+   - `SECRET_KEY` = (generate a random string)
+6. Click "Create Web Service"
+
+### Option 2: Railway.app
+
+1. Visit [railway.app](https://railway.app)
+2. Click "Start a New Project" → "Deploy from GitHub repo"
+3. Select your repository
+4. Railway will auto-detect Flask and deploy
+5. Add environment variable `SECRET_KEY`
+
+### Option 3: PythonAnywhere
+
+1. Sign up at [pythonanywhere.com](https://www.pythonanywhere.com)
+2. Upload your files via Files tab
+3. Open Bash console and run: `pip install -r requirements.txt`
+4. Go to Web tab → Add a new web app → Flask
+5. Configure WSGI file to point to `app.py`
+6. Set `SECRET_KEY` in WSGI configuration
+
+### Option 4: Heroku
+
+1. Install Heroku CLI
+2. Create `Procfile`:
+   ```
+   web: gunicorn app:app
+   ```
+3. Deploy:
+   ```bash
+   heroku create your-app-name
+   heroku config:set SECRET_KEY=your-secret-key-here
+   git push heroku main
+   ```
+
+## CSV Format
+
+### Ground Truth (Admin uploads when creating competition)
+```csv
+id,target
+1,0.5
+2,1.2
+3,0.8
 ```
 
-### 3. Deploy to Vercel
-
-1. Push code to GitHub
-2. Go to [vercel.com](https://vercel.com)
-3. Import your repository
-4. Add environment variables:
-   - `SUPABASE_URL` - Your Supabase project URL
-   - `SUPABASE_KEY` - Your service role key
-   - `SECRET_KEY` - Generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
-5. Click Deploy
-
-### 4. Test Your Deployment
-
-```bash
-# Test admin login
-curl -X POST https://your-project.vercel.app/api/admin/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "isaaceinst3in", "password": "your-password"}'
-
-# Test student registration
-curl -X POST https://your-project.vercel.app/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"student_index": "12345", "password": "test123", "name": "Test Student"}'
-```
-
-## 📚 API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register student
-- `POST /api/auth/login` - Student login
-- `POST /api/auth/logout` - Logout
-
-### Student Operations
-- `POST /api/submit` - Submit prediction CSV
-- `GET /api/submissions` - Get your submissions
-
-### Admin Operations
-- `POST /api/admin/login` - Admin login
-- `GET /api/admin/leaderboard` - Get leaderboard
-- `POST /api/admin/upload_ground_truth` - Upload ground truth
-- `POST /api/admin/configure_columns` - Configure CSV columns
-- `GET /api/admin/settings` - Get settings
-- `GET /api/admin/export` - Export results
-
-## 📋 CSV Format
-
-**CSV files MUST include column headers.**
-
-Example:
+### Predictions (Users submit)
 ```csv
 id,prediction
-1,10.5
-2,20.3
-3,15.7
+1,0.48
+2,1.25
+3,0.82
 ```
 
-## 💡 How RMSE Works
+**Important:** Both CSV files MUST include column headers as the first row.
 
-1. Student uploads CSV via API
-2. CSV read into memory (no file system)
-3. Ground truth fetched from database
-4. Pandas + NumPy calculate RMSE: `sqrt(mean((pred - truth)^2))`
-5. Result stored in database
-6. Leaderboard updated
+## Environment Variables
 
-All happens in a single serverless function!
+- `SECRET_KEY` - Flask secret key for sessions (required for production)
+- `PORT` - Port to run on (auto-detected by most platforms)
 
-## 🔒 Security
+## Note
 
-- HTTPS only (automatic with Vercel)
-- Password hashing with Werkzeug
-- Session-based authentication
-- Row Level Security in Supabase
-- Service role key never exposed
-
-## 💰 Cost
-
-**Free Tier:**
-- Vercel: 100GB bandwidth/month
-- Supabase: 500MB database
-
-Typical usage for 100 students: **$0/month**
-
-## 📖 Documentation
-
-See [SERVERLESS_DEPLOY.md](SERVERLESS_DEPLOY.md) for detailed deployment instructions.
-
-## 🆘 Troubleshooting
-
-**Database connection issues?**
-- Verify `SUPABASE_URL` and `SUPABASE_KEY`
-- Use service role key (not anon key)
-
-**RMSE errors?**
-- Ensure CSV has headers
-- Check column names match configuration
-- Verify numeric values in prediction column
-
-**Session issues?**
-- Verify `SECRET_KEY` is set
-- Check cookies are enabled
-
-## 🤝 Contributing
-
-This is a serverless version optimized for Vercel + Supabase.
-
-## 📝 License
-
-MIT License
-
----
-
-**Need help?** Check Vercel function logs and Supabase logs for errors.
+This app uses in-memory storage. Data will be lost on restart. For production, integrate a database (PostgreSQL, MongoDB, etc.).

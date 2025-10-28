@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Active Competitions</h1>
+
+{% if competitions %}
+    <div class="competitions-grid">
+        {% for comp in competitions.values() %}
+        <div class="competition-card">
+            <h2>{{ comp.name }}</h2>
+            <p>{{ comp.description }}</p>
+            <p><strong>Start:</strong> {{ comp.start_date }}</p>
+            <p><strong>End:</strong> {{ comp.end_date }}</p>
+            <p><strong>Metric:</strong> {{ comp.metric }}</p>
+            <div class="card-actions">
+                <a href="{{ url_for('competition_detail', comp_id=comp.id) }}" class="btn">View Details</a>
+                <a href="{{ url_for('leaderboard', comp_id=comp.id) }}" class="btn btn-secondary">Leaderboard</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="empty-state">No active competitions at the moment. Check back soon!</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h1>Admin Dashboard</h1>
+
+<div class="admin-section">
+    <h2>Create New Competition</h2>
+    <form method="POST" action="{{ url_for('create_competition') }}" enctype="multipart/form-data" class="admin-form">
+        <div class="form-group">
+            <label for="name">Competition Name:</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" rows="4" required></textarea>
+        </div>
+        <div class="form-group">
+            <label for="start_date">Start Date:</label>
+            <input type="date" id="start_date" name="start_date" required>
+        </div>
+        <div class="form-group">
+            <label for="end_date">End Date:</label>
+            <input type="date" id="end_date" name="end_date" required>
+        </div>
+        <div class="form-group">
+            <label for="metric">Evaluation Metric:</label>
+            <select id="metric" name="metric" required>
+                <option value="accuracy">Accuracy</option>
+                <option value="rmse">RMSE</option>
+                <option value="mae">MAE</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="ground_truth">Ground Truth CSV (with headers):</label>
+            <input type="file" id="ground_truth" name="ground_truth" accept=".csv" required>
+            <small>CSV format: id,target (with column headers)</small>
+        </div>
+        <button type="submit" class="btn">Create Competition</button>
+    </form>
+</div>
+
+<div class="admin-section">
+    <h2>Existing Competitions</h2>
+    {% if competitions %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Metric</th>
+                        <th>Submissions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comp in competitions.values() %}
+                    <tr>
+                        <td>{{ comp.id }}</td>
+                        <td>{{ comp.name }}</td>
+                        <td>{{ comp.start_date }}</td>
+                        <td>{{ comp.end_date }}</td>
+                        <td>{{ comp.metric }}</td>
+                        <td>{{ submissions.values()|selectattr('competition_id', 'equalto', comp.id)|list|length }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p>No competitions created yet.</p>
+    {% endif %}
+</div>
+{% endblock %}
