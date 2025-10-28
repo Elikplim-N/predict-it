@@ -15,14 +15,68 @@ ADMIN_USERNAME = 'isaac3instein'
 ADMIN_PASSWORD = '12zaci'
 ADMIN_HASH = generate_password_hash(ADMIN_PASSWORD)
 
-DATABASE = 'predict_it.db'
+# Database configuration - use PostgreSQL if DATABASE_URL exists, else SQLite
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+USE_POSTGRES = DATABASE_URL is not None
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
 
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
+        if USE_POSTGRES:
+            db = g._database = psycopg2.connect(DATABASE_URL)
+        else:
+            db = g._database = sqlite3.connect('predict_it.db')
+            db.row_factory = sqlite3.Row
     return db
+
+class DBWrapper:
+    """Wrapper to make PostgreSQL queries work with ? placeholders like SQLite"""
+    def __init__(self, db):
+        self.db = db
+        self.is_postgres = USE_POSTGRES
+    
+    def execute(self, query, params=()):
+        if self.is_postgres:
+            # Convert ? to %s for PostgreSQL
+            pg_query = query.replace('?', '%s')
+            cursor = self.db.cursor()
+            cursor.execute(pg_query, params)
+            return PGResult(cursor)
+        else:
+            return self.db.execute(query, params)
+    
+    def commit(self):
+        self.db.commit()
+
+class PGResult:
+    """Wrapper to make PostgreSQL cursor results dict-accessible like SQLite Row"""
+    def __init__(self, cursor):
+        self.cursor = cursor
+    
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row and self.cursor.description:
+            cols = [desc[0] for desc in self.cursor.description]
+            return dict(zip(cols, row))
+        return None
+    
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        if rows and self.cursor.description:
+            cols = [desc[0] for desc in self.cursor.description]
+            return [dict(zip(cols, row)) for row in rows]
+        return []
+
+def get_db_wrapper():
+    """Get database connection wrapped for compatibility"""
+    return DBWrapper(get_db())
 
 @app.teardown_appcontext
 def close_connection(exception):
@@ -33,37 +87,71 @@ def close_connection(exception):
 def init_db():
     with app.app_context():
         db = get_db()
-        db.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                email TEXT NOT NULL
-            )
-        ''')
-        db.execute('''
-            CREATE TABLE IF NOT EXISTS tests (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT,
-                start_date TEXT,
-                end_date TEXT,
-                metric TEXT,
-                ground_truth TEXT
-            )
-        ''')
-        db.execute('''
-            CREATE TABLE IF NOT EXISTS submissions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                test_id INTEGER NOT NULL,
-                username TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                score REAL NOT NULL,
-                filename TEXT,
-                FOREIGN KEY (test_id) REFERENCES tests (id)
-            )
-        ''')
-        db.commit()
+        if USE_POSTGRES:
+            cursor = db.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    email TEXT NOT NULL
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tests (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    start_date TEXT,
+                    end_date TEXT,
+                    metric TEXT,
+                    ground_truth TEXT
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS submissions (
+                    id SERIAL PRIMARY KEY,
+                    test_id INTEGER NOT NULL,
+                    username TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    score REAL NOT NULL,
+                    filename TEXT,
+                    FOREIGN KEY (test_id) REFERENCES tests (id)
+                )
+            ''')
+            db.commit()
+        else:
+            db.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    email TEXT NOT NULL
+                )
+            ''')
+            db.execute('''
+                CREATE TABLE IF NOT EXISTS tests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    start_date TEXT,
+                    end_date TEXT,
+                    metric TEXT,
+                    ground_truth TEXT
+                )
+            ''')
+            db.execute('''
+                CREATE TABLE IF NOT EXISTS submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    test_id INTEGER NOT NULL,
+                    username TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    score REAL NOT NULL,
+                    filename TEXT,
+                    FOREIGN KEY (test_id) REFERENCES tests (id)
+                )
+            ''')
+            db.commit()
 
 @app.before_request
 def before_first_request():
@@ -74,7 +162,7 @@ def before_first_request():
 
 @app.route('/')
 def index():
-    db = get_db()
+    db = get_db_wrapper()
     tests = db.execute('SELECT * FROM tests ORDER BY id DESC').fetchall()
     return render_template('index.html', tests=tests)
 
@@ -85,7 +173,7 @@ def register():
         password = request.form['password']
         email = request.form['email']
         
-        db = get_db()
+        db = get_db_wrapper()
         existing_user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         
         if existing_user:
@@ -113,7 +201,7 @@ def login():
             return redirect(url_for('admin_dashboard'))
         
         # Check student login
-        db = get_db()
+        db = get_db_wrapper()
         user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         
         if user and check_password_hash(user['password'], password):
@@ -136,7 +224,7 @@ def admin_dashboard():
         flash('Admin access required')
         return redirect(url_for('login'))
     
-    db = get_db()
+    db = get_db_wrapper()
     tests = db.execute('SELECT * FROM tests ORDER BY id DESC').fetchall()
     submissions = db.execute('SELECT * FROM submissions ORDER BY timestamp DESC').fetchall()
     return render_template('admin.html', tests=tests, submissions=submissions)
@@ -159,7 +247,7 @@ def create_test():
         if file and file.filename.endswith('.csv'):
             ground_truth = file.read().decode('utf-8')
     
-    db = get_db()
+    db = get_db_wrapper()
     db.execute('INSERT INTO tests (name, description, start_date, end_date, metric, ground_truth) VALUES (?, ?, ?, ?, ?, ?)',
                (name, description, start_date, end_date, metric, ground_truth))
     db.commit()
@@ -169,7 +257,7 @@ def create_test():
 
 @app.route('/test/<int:test_id>')
 def test_detail(test_id):
-    db = get_db()
+    db = get_db_wrapper()
     test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
@@ -187,7 +275,7 @@ def submit_prediction(test_id):
         flash('Please login to submit')
         return redirect(url_for('login'))
     
-    db = get_db()
+    db = get_db_wrapper()
     test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
@@ -224,7 +312,7 @@ def leaderboard(test_id):
         flash('Admin access required to view leaderboard')
         return redirect(url_for('login'))
     
-    db = get_db()
+    db = get_db_wrapper()
     test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
@@ -260,7 +348,7 @@ def download_leaderboard(test_id):
         flash('Admin access required')
         return redirect(url_for('login'))
     
-    db = get_db()
+    db = get_db_wrapper()
     test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
