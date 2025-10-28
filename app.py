@@ -253,6 +253,54 @@ def leaderboard(test_id):
     
     return render_template('leaderboard.html', test=test, leaderboard=leaderboard_data)
 
+@app.route('/leaderboard/<int:test_id>/download')
+def download_leaderboard(test_id):
+    # Only admins can download leaderboard
+    if not session.get('is_admin'):
+        flash('Admin access required')
+        return redirect(url_for('login'))
+    
+    db = get_db()
+    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    
+    if not test:
+        flash('Test not found')
+        return redirect(url_for('index'))
+    
+    # Get all submissions for this test
+    test_submissions = db.execute(
+        'SELECT * FROM submissions WHERE test_id = ? ORDER BY score DESC',
+        (test_id,)
+    ).fetchall()
+    
+    # Get best submission per user
+    user_best = {}
+    for sub in test_submissions:
+        username = sub['username']
+        if username not in user_best:
+            user_best[username] = sub
+    
+    # Sort by score (descending for accuracy, ascending for RMSE/MAE)
+    leaderboard_data = list(user_best.values())
+    if test['metric'] in ['rmse', 'mae']:
+        leaderboard_data.sort(key=lambda x: x['score'])
+    else:
+        leaderboard_data.sort(key=lambda x: x['score'], reverse=True)
+    
+    # Generate CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Rank', 'Username', 'Score', 'Timestamp'])
+    for idx, entry in enumerate(leaderboard_data, 1):
+        writer.writerow([idx, entry['username'], entry['score'], entry['timestamp']])
+    
+    from flask import make_response
+    csv_output = output.getvalue()
+    response = make_response(csv_output)
+    response.headers['Content-Disposition'] = f'attachment; filename=leaderboard_{test["name"].replace(" ", "_")}.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    return response
+
 def calculate_score(predictions_csv, ground_truth_csv, metric):
     """Calculate score based on metric type"""
     if not ground_truth_csv:
@@ -262,8 +310,19 @@ def calculate_score(predictions_csv, ground_truth_csv, metric):
         pred_reader = csv.DictReader(StringIO(predictions_csv))
         truth_reader = csv.DictReader(StringIO(ground_truth_csv))
         
-        pred_data = {row['id']: float(row['prediction']) for row in pred_reader}
-        truth_data = {row['id']: float(row['target']) for row in truth_reader}
+        # Build prediction dict - use first column as ID, second as prediction value
+        pred_data = {}
+        for row in pred_reader:
+            cols = list(row.keys())
+            if len(cols) >= 2:
+                pred_data[row[cols[0]]] = float(row[cols[1]])
+        
+        # Build ground truth dict - use first column as ID, second as target value
+        truth_data = {}
+        for row in truth_reader:
+            cols = list(row.keys())
+            if len(cols) >= 2:
+                truth_data[row[cols[0]]] = float(row[cols[1]])
         
         if metric == 'accuracy':
             correct = sum(1 for k in pred_data if k in truth_data and 
