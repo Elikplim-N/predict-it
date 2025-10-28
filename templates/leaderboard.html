@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Leaderboard - {{ competition.name }}{% endblock %}
+{% block title %}Leaderboard - {{ test.name }}{% endblock %}
 
 {% block content %}
-<h1>Leaderboard: {{ competition.name }}</h1>
+<h1>Leaderboard: {{ test.name }}</h1>
 
 {% if leaderboard %}
     <div class="table-container">
@@ -33,7 +33,7 @@
 {% endif %}
 
 <div class="actions">
-    <a href="{{ url_for('competition_detail', comp_id=competition.id) }}" class="btn">Back to Competition</a>
-    <a href="{{ url_for('index') }}" class="btn btn-secondary">All Competitions</a>
+    <a href="{{ url_for('test_detail', test_id=test.id) }}" class="btn">Back to Test</a>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">All Tests</a>
 </div>
 {% endblock %}

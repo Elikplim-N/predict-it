@@ -10,3 +10,4 @@ ENV/
 *.log
 instance/
 .DS_Store
+*.db

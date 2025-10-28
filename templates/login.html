@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Login - ML Competition Platform{% endblock %}
+{% block title %}Login - Predict It{% endblock %}
 
 {% block content %}
 <div class="form-container">
@@ -16,7 +16,7 @@
         </div>
         <button type="submit" class="btn">Login</button>
     </form>
-    <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
-    <p class="hint">Admin credentials: username: <code>admin</code>, password: <code>admin123</code></p>
+    <p>Student? <a href="{{ url_for('register') }}">Sign up here</a></p>
+    <p class="hint">Admin login: username: <code>admin</code>, password: <code>admin123</code></p>
 </div>
 {% endblock %}

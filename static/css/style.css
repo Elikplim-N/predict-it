@@ -29,6 +29,13 @@ body {
     font-weight: bold;
     color: white;
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logo-icon {
+    font-size: 1.8rem;
 }
 
 .nav-links {
@@ -171,6 +178,11 @@ h2 {
 
 .btn-secondary:hover {
     background: #7f8c8d;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
 }
 
 .table-container {

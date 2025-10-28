@@ -1,25 +1,27 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Active Competitions</h1>
+<h1>Active Tests</h1>
 
-{% if competitions %}
+{% if tests %}
     <div class="competitions-grid">
-        {% for comp in competitions.values() %}
+        {% for test in tests %}
         <div class="competition-card">
-            <h2>{{ comp.name }}</h2>
-            <p>{{ comp.description }}</p>
-            <p><strong>Start:</strong> {{ comp.start_date }}</p>
-            <p><strong>End:</strong> {{ comp.end_date }}</p>
-            <p><strong>Metric:</strong> {{ comp.metric }}</p>
+            <h2>{{ test.name }}</h2>
+            <p>{{ test.description }}</p>
+            <p><strong>Start:</strong> {{ test.start_date }}</p>
+            <p><strong>End:</strong> {{ test.end_date }}</p>
+            <p><strong>Metric:</strong> {{ test.metric }}</p>
             <div class="card-actions">
-                <a href="{{ url_for('competition_detail', comp_id=comp.id) }}" class="btn">View Details</a>
-                <a href="{{ url_for('leaderboard', comp_id=comp.id) }}" class="btn btn-secondary">Leaderboard</a>
+                <a href="{{ url_for('test_detail', test_id=test.id) }}" class="btn">View Details</a>
+                {% if session.is_admin %}
+                    <a href="{{ url_for('leaderboard', test_id=test.id) }}" class="btn btn-secondary">Leaderboard</a>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
 {% else %}
-    <p class="empty-state">No active competitions at the moment. Check back soon!</p>
+    <p class="empty-state">No active tests at the moment. Check back soon!</p>
 {% endif %}
 {% endblock %}

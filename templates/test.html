@@ -1,23 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}{{ competition.name }}{% endblock %}
+{% block title %}{{ test.name }}{% endblock %}
 
 {% block content %}
-<h1>{{ competition.name }}</h1>
+<h1>{{ test.name }}</h1>
 
 <div class="competition-details">
-    <p class="description">{{ competition.description }}</p>
+    <p class="description">{{ test.description }}</p>
     <div class="meta-info">
-        <p><strong>Start Date:</strong> {{ competition.start_date }}</p>
-        <p><strong>End Date:</strong> {{ competition.end_date }}</p>
-        <p><strong>Evaluation Metric:</strong> {{ competition.metric }}</p>
+        <p><strong>Start Date:</strong> {{ test.start_date }}</p>
+        <p><strong>End Date:</strong> {{ test.end_date }}</p>
+        <p><strong>Evaluation Metric:</strong> {{ test.metric }}</p>
     </div>
 </div>
 
-{% if session.username %}
+{% if session.username and not session.is_admin %}
 <div class="submission-section">
     <h2>Submit Your Prediction</h2>
-    <form method="POST" action="{{ url_for('submit_prediction', comp_id=competition.id) }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ url_for('submit_prediction', test_id=test.id) }}" enctype="multipart/form-data">
         <div class="form-group">
             <label for="prediction_file">Upload Prediction CSV (with headers):</label>
             <input type="file" id="prediction_file" name="prediction_file" accept=".csv" required>
@@ -26,7 +26,7 @@
         <button type="submit" class="btn">Submit</button>
     </form>
 </div>
-{% else %}
+{% elif not session.username %}
 <div class="alert">
     <p>Please <a href="{{ url_for('login') }}">login</a> to submit your predictions.</p>
 </div>
@@ -63,7 +63,9 @@
 </div>
 
 <div class="actions">
-    <a href="{{ url_for('leaderboard', comp_id=competition.id) }}" class="btn btn-secondary">View Leaderboard</a>
-    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Competitions</a>
+    {% if session.is_admin %}
+        <a href="{{ url_for('leaderboard', test_id=test.id) }}" class="btn btn-secondary">View Leaderboard</a>
+    {% endif %}
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Tests</a>
 </div>
 {% endblock %}
