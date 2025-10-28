@@ -11,8 +11,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 # Fixed admin credentials - cannot be changed via signup
-ADMIN_USERNAME = 'admin'
-ADMIN_PASSWORD = 'admin123'
+ADMIN_USERNAME = 'isaac3instein'
+ADMIN_PASSWORD = '12zaci'
 ADMIN_HASH = generate_password_hash(ADMIN_PASSWORD)
 
 DATABASE = 'predict_it.db'
