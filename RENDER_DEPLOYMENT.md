@@ -26,6 +26,11 @@
    - Add these variables:
      - `SECRET_KEY` = `your-random-secret-key-here` (generate one)
      - `DATABASE_URL` = Paste the Internal Database URL you copied in step 2
+     - `ADMIN_USERNAME` = your chosen admin login
+     - `ADMIN_PASSWORD` = your chosen admin password
+   - **`DATABASE_URL` is required for your data to survive restarts.** Without
+     it the app falls back to SQLite, which is wiped every time the service
+     restarts or redeploys on the free tier.
    
 5. **Deploy**
    - Click "Create Web Service"
@@ -48,5 +53,8 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 ## Admin Login
 
-- Username: `isaac3instein`
-- Password: `12zaci`
+The admin username and password come from the `ADMIN_USERNAME` and
+`ADMIN_PASSWORD` environment variables. If they are not set, the app falls
+back to the local development defaults (`isaac3instein` / `12zaci`) — set the
+environment variables in production so the credentials are not the public
+defaults.
