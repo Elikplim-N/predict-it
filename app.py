@@ -10,9 +10,13 @@ import secrets
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
-# Fixed admin credentials - cannot be changed via signup
-ADMIN_USERNAME = 'isaac3instein'
-ADMIN_PASSWORD = '12zaci'
+# Reject uploads larger than 5 MB to avoid exhausting memory.
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+
+# Admin credentials - read from the environment in production, with the
+# previous values kept as a local-development fallback.
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'isaac3instein')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '12zaci')
 ADMIN_HASH = generate_password_hash(ADMIN_PASSWORD)
 
 # Database configuration - use PostgreSQL if DATABASE_URL exists, else SQLite
@@ -29,6 +33,12 @@ if USE_POSTGRES:
     except ImportError:
         print("WARNING: psycopg2 not available, falling back to SQLite")
         USE_POSTGRES = False
+
+if not USE_POSTGRES:
+    print("WARNING: DATABASE_URL is not set - using local SQLite. On ephemeral "
+          "hosts (e.g. Render's free tier) the database file is wiped on every "
+          "restart, so all users, tests, and submissions will be LOST. Set "
+          "DATABASE_URL to a PostgreSQL database for persistent storage.")
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -157,12 +167,20 @@ def init_db():
             ''')
             db.commit()
 
+_db_initialized = False
+
 @app.before_request
 def before_first_request():
-    """Initialize database on first request"""
-    if not hasattr(g, 'db_initialized'):
+    """Initialize the database once, on the first request."""
+    global _db_initialized
+    if not _db_initialized:
         init_db()
-        g.db_initialized = True
+        _db_initialized = True
+
+@app.errorhandler(413)
+def file_too_large(error):
+    flash('File too large. The maximum upload size is 5 MB.')
+    return redirect(request.referrer or url_for('index'))
 
 @app.route('/')
 def index():
@@ -354,13 +372,21 @@ def submit_prediction(test_id):
         flash('Please upload a CSV file')
         return redirect(url_for('test_detail', test_id=test_id))
     
-    content = file.read().decode('utf-8')
-    score = calculate_score(content, test['ground_truth'], test['metric'])
-    
+    try:
+        content = file.read().decode('utf-8')
+    except UnicodeDecodeError:
+        flash('Could not read the file. Please upload a valid UTF-8 encoded CSV.')
+        return redirect(url_for('test_detail', test_id=test_id))
+
+    score, error = calculate_score(content, test['ground_truth'], test['metric'])
+    if error:
+        flash(f'Submission rejected: {error}')
+        return redirect(url_for('test_detail', test_id=test_id))
+
     db.execute('INSERT INTO submissions (test_id, username, timestamp, score, filename) VALUES (?, ?, ?, ?, ?)',
                (test_id, session['username'], datetime.now().isoformat(), score, file.filename))
     db.commit()
-    
+
     flash(f'Submission successful! Score: {score:.4f}')
     return redirect(url_for('test_detail', test_id=test_id))
 
@@ -452,48 +478,65 @@ def download_leaderboard(test_id):
     response.headers['Content-Type'] = 'text/csv'
     return response
 
+def _parse_id_value_csv(csv_text, label):
+    """Parse a two-column (id, value) CSV into a dict, raising ValueError on
+    any structural or numeric problem so the caller can report it."""
+    reader = csv.DictReader(StringIO(csv_text))
+    cols = reader.fieldnames
+    if not cols or len(cols) < 2:
+        raise ValueError(f'{label} must have at least two columns (id, value).')
+
+    data = {}
+    # Row numbering starts at 2 to account for the header row.
+    for line_no, row in enumerate(reader, start=2):
+        key = row[cols[0]]
+        raw = row[cols[1]]
+        try:
+            data[key] = float(raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"{label} row {line_no}: '{raw}' is not a number.")
+
+    if not data:
+        raise ValueError(f'{label} contains no data rows.')
+    return data
+
+
 def calculate_score(predictions_csv, ground_truth_csv, metric):
-    """Calculate score based on metric type"""
+    """Calculate a score for the given metric.
+
+    Returns a (score, error) tuple. On success error is None; on any
+    validation problem score is None and error is a human-readable message.
+    """
     if not ground_truth_csv:
-        return 0.0
-    
+        return None, 'This test has no ground truth file configured yet.'
+
     try:
-        pred_reader = csv.DictReader(StringIO(predictions_csv))
-        truth_reader = csv.DictReader(StringIO(ground_truth_csv))
-        
-        # Build prediction dict - use first column as ID, second as prediction value
-        pred_data = {}
-        for row in pred_reader:
-            cols = list(row.keys())
-            if len(cols) >= 2:
-                pred_data[row[cols[0]]] = float(row[cols[1]])
-        
-        # Build ground truth dict - use first column as ID, second as target value
-        truth_data = {}
-        for row in truth_reader:
-            cols = list(row.keys())
-            if len(cols) >= 2:
-                truth_data[row[cols[0]]] = float(row[cols[1]])
-        
-        if metric == 'accuracy':
-            correct = sum(1 for k in pred_data if k in truth_data and 
-                         round(pred_data[k]) == round(truth_data[k]))
-            return correct / len(truth_data) if truth_data else 0.0
-        
-        elif metric == 'rmse':
-            import math
-            mse = sum((pred_data.get(k, 0) - truth_data[k])**2 for k in truth_data)
-            return math.sqrt(mse / len(truth_data)) if truth_data else 0.0
-        
-        elif metric == 'mae':
-            mae = sum(abs(pred_data.get(k, 0) - truth_data[k]) for k in truth_data)
-            return mae / len(truth_data) if truth_data else 0.0
-    
-    except Exception as e:
-        print(f"Error calculating score: {e}")
-        return 0.0
-    
-    return 0.0
+        truth_data = _parse_id_value_csv(ground_truth_csv, 'Ground truth')
+        pred_data = _parse_id_value_csv(predictions_csv, 'Prediction')
+    except ValueError as e:
+        return None, str(e)
+
+    missing = [k for k in truth_data if k not in pred_data]
+    if missing:
+        sample = ', '.join(str(k) for k in missing[:3])
+        return None, (f'Prediction is missing values for {len(missing)} of '
+                      f'{len(truth_data)} IDs (e.g. {sample}).')
+
+    if metric == 'accuracy':
+        correct = sum(1 for k in truth_data
+                      if round(pred_data[k]) == round(truth_data[k]))
+        return correct / len(truth_data), None
+
+    elif metric == 'rmse':
+        import math
+        mse = sum((pred_data[k] - truth_data[k]) ** 2 for k in truth_data) / len(truth_data)
+        return math.sqrt(mse), None
+
+    elif metric == 'mae':
+        mae = sum(abs(pred_data[k] - truth_data[k]) for k in truth_data) / len(truth_data)
+        return mae, None
+
+    return None, f"Unknown metric '{metric}'."
 
 
 if __name__ == '__main__':
