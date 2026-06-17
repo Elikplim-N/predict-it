@@ -104,7 +104,7 @@ def init_db():
         if USE_POSTGRES:
             cursor = db.cursor()
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
+                CREATE TABLE IF NOT EXISTS pi_users (
                     id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
@@ -112,7 +112,7 @@ def init_db():
                 )
             ''')
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS tests (
+                CREATE TABLE IF NOT EXISTS pi_tests (
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
                     description TEXT,
@@ -123,20 +123,20 @@ def init_db():
                 )
             ''')
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS submissions (
+                CREATE TABLE IF NOT EXISTS pi_submissions (
                     id SERIAL PRIMARY KEY,
                     test_id INTEGER NOT NULL,
                     username TEXT NOT NULL,
                     timestamp TEXT NOT NULL,
                     score REAL NOT NULL,
                     filename TEXT,
-                    FOREIGN KEY (test_id) REFERENCES tests (id)
+                    FOREIGN KEY (test_id) REFERENCES pi_tests (id)
                 )
             ''')
             db.commit()
         else:
             db.execute('''
-                CREATE TABLE IF NOT EXISTS users (
+                CREATE TABLE IF NOT EXISTS pi_users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
@@ -144,7 +144,7 @@ def init_db():
                 )
             ''')
             db.execute('''
-                CREATE TABLE IF NOT EXISTS tests (
+                CREATE TABLE IF NOT EXISTS pi_tests (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     description TEXT,
@@ -155,14 +155,14 @@ def init_db():
                 )
             ''')
             db.execute('''
-                CREATE TABLE IF NOT EXISTS submissions (
+                CREATE TABLE IF NOT EXISTS pi_submissions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     test_id INTEGER NOT NULL,
                     username TEXT NOT NULL,
                     timestamp TEXT NOT NULL,
                     score REAL NOT NULL,
                     filename TEXT,
-                    FOREIGN KEY (test_id) REFERENCES tests (id)
+                    FOREIGN KEY (test_id) REFERENCES pi_tests (id)
                 )
             ''')
             db.commit()
@@ -185,7 +185,7 @@ def file_too_large(error):
 @app.route('/')
 def index():
     db = get_db_wrapper()
-    tests = db.execute('SELECT * FROM tests ORDER BY id DESC').fetchall()
+    tests = db.execute('SELECT * FROM pi_tests ORDER BY id DESC').fetchall()
     return render_template('index.html', tests=tests)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -196,13 +196,13 @@ def register():
         email = request.form['email']
         
         db = get_db_wrapper()
-        existing_user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        existing_user = db.execute('SELECT * FROM pi_users WHERE username = ?', (username,)).fetchone()
         
         if existing_user:
             flash('Username already exists')
             return redirect(url_for('register'))
         
-        db.execute('INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
+        db.execute('INSERT INTO pi_users (username, password, email) VALUES (?, ?, ?)',
                    (username, generate_password_hash(password), email))
         db.commit()
         flash('Registration successful! Please login.')
@@ -224,7 +224,7 @@ def login():
         
         # Check student login
         db = get_db_wrapper()
-        user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        user = db.execute('SELECT * FROM pi_users WHERE username = ?', (username,)).fetchone()
         
         if user and check_password_hash(user['password'], password):
             session['username'] = username
@@ -247,8 +247,8 @@ def admin_dashboard():
         return redirect(url_for('login'))
     
     db = get_db_wrapper()
-    tests = db.execute('SELECT * FROM tests ORDER BY id DESC').fetchall()
-    submissions = db.execute('SELECT * FROM submissions ORDER BY timestamp DESC').fetchall()
+    tests = db.execute('SELECT * FROM pi_tests ORDER BY id DESC').fetchall()
+    submissions = db.execute('SELECT * FROM pi_submissions ORDER BY timestamp DESC').fetchall()
     return render_template('admin.html', tests=tests, submissions=submissions)
 
 @app.route('/admin/create_test', methods=['POST'])
@@ -270,7 +270,7 @@ def create_test():
             ground_truth = file.read().decode('utf-8')
     
     db = get_db_wrapper()
-    db.execute('INSERT INTO tests (name, description, start_date, end_date, metric, ground_truth) VALUES (?, ?, ?, ?, ?, ?)',
+    db.execute('INSERT INTO pi_tests (name, description, start_date, end_date, metric, ground_truth) VALUES (?, ?, ?, ?, ?, ?)',
                (name, description, start_date, end_date, metric, ground_truth))
     db.commit()
     
@@ -284,9 +284,9 @@ def delete_test(test_id):
     
     db = get_db_wrapper()
     # Delete submissions first (foreign key constraint)
-    db.execute('DELETE FROM submissions WHERE test_id = ?', (test_id,))
+    db.execute('DELETE FROM pi_submissions WHERE test_id = ?', (test_id,))
     # Delete the test
-    db.execute('DELETE FROM tests WHERE id = ?', (test_id,))
+    db.execute('DELETE FROM pi_tests WHERE id = ?', (test_id,))
     db.commit()
     
     flash('Test deleted successfully!')
@@ -313,15 +313,15 @@ def edit_test(test_id):
             if file and file.filename.endswith('.csv'):
                 ground_truth = file.read().decode('utf-8')
                 # Update with new ground truth
-                db.execute('UPDATE tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ?, ground_truth = ? WHERE id = ?',
+                db.execute('UPDATE pi_tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ?, ground_truth = ? WHERE id = ?',
                            (name, description, start_date, end_date, metric, ground_truth, test_id))
             else:
                 # Update without changing ground truth
-                db.execute('UPDATE tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ? WHERE id = ?',
+                db.execute('UPDATE pi_tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ? WHERE id = ?',
                            (name, description, start_date, end_date, metric, test_id))
         else:
             # Update without changing ground truth
-            db.execute('UPDATE tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ? WHERE id = ?',
+            db.execute('UPDATE pi_tests SET name = ?, description = ?, start_date = ?, end_date = ?, metric = ? WHERE id = ?',
                        (name, description, start_date, end_date, metric, test_id))
         
         db.commit()
@@ -329,7 +329,7 @@ def edit_test(test_id):
         return redirect(url_for('admin_dashboard'))
     
     # GET request - show edit form
-    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    test = db.execute('SELECT * FROM pi_tests WHERE id = ?', (test_id,)).fetchone()
     if not test:
         flash('Test not found')
         return redirect(url_for('admin_dashboard'))
@@ -339,13 +339,13 @@ def edit_test(test_id):
 @app.route('/test/<int:test_id>')
 def test_detail(test_id):
     db = get_db_wrapper()
-    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    test = db.execute('SELECT * FROM pi_tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
         flash('Test not found')
         return redirect(url_for('index'))
     
-    test_submissions = db.execute('SELECT * FROM submissions WHERE test_id = ? ORDER BY timestamp DESC',
+    test_submissions = db.execute('SELECT * FROM pi_submissions WHERE test_id = ? ORDER BY timestamp DESC',
                                    (test_id,)).fetchall()
     
     return render_template('test.html', test=test, submissions=test_submissions)
@@ -357,7 +357,7 @@ def submit_prediction(test_id):
         return redirect(url_for('login'))
     
     db = get_db_wrapper()
-    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    test = db.execute('SELECT * FROM pi_tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
         flash('Test not found')
@@ -383,7 +383,7 @@ def submit_prediction(test_id):
         flash(f'Submission rejected: {error}')
         return redirect(url_for('test_detail', test_id=test_id))
 
-    db.execute('INSERT INTO submissions (test_id, username, timestamp, score, filename) VALUES (?, ?, ?, ?, ?)',
+    db.execute('INSERT INTO pi_submissions (test_id, username, timestamp, score, filename) VALUES (?, ?, ?, ?, ?)',
                (test_id, session['username'], datetime.now().isoformat(), score, file.filename))
     db.commit()
 
@@ -402,7 +402,7 @@ def leaderboard(test_id):
         return redirect(url_for('login'))
     
     db = get_db_wrapper()
-    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    test = db.execute('SELECT * FROM pi_tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
         flash('Test not found')
@@ -410,7 +410,7 @@ def leaderboard(test_id):
     
     # Get all submissions for this test
     test_submissions = db.execute(
-        'SELECT * FROM submissions WHERE test_id = ? ORDER BY score DESC',
+        'SELECT * FROM pi_submissions WHERE test_id = ? ORDER BY score DESC',
         (test_id,)
     ).fetchall()
     
@@ -438,7 +438,7 @@ def download_leaderboard(test_id):
         return redirect(url_for('login'))
     
     db = get_db_wrapper()
-    test = db.execute('SELECT * FROM tests WHERE id = ?', (test_id,)).fetchone()
+    test = db.execute('SELECT * FROM pi_tests WHERE id = ?', (test_id,)).fetchone()
     
     if not test:
         flash('Test not found')
@@ -446,7 +446,7 @@ def download_leaderboard(test_id):
     
     # Get all submissions for this test
     test_submissions = db.execute(
-        'SELECT * FROM submissions WHERE test_id = ? ORDER BY score DESC',
+        'SELECT * FROM pi_submissions WHERE test_id = ? ORDER BY score DESC',
         (test_id,)
     ).fetchall()
     
