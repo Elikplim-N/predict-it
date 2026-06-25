@@ -389,7 +389,18 @@ def submit_prediction(test_id):
     if not test:
         flash('Test not found')
         return redirect(url_for('index'))
-    
+
+    # Enforce the submission period. Stored dates are ISO 8601 strings
+    # ("YYYY-MM-DDTHH:MM"), so a lexicographic comparison against the current
+    # time is also chronologically correct.
+    now_iso = datetime.now().isoformat()
+    if test['start_date'] and now_iso < test['start_date']:
+        flash('Submissions are not open yet for this test.')
+        return redirect(url_for('test_detail', test_id=test_id))
+    if test['end_date'] and now_iso > test['end_date']:
+        flash('The submission period for this test has closed.')
+        return redirect(url_for('test_detail', test_id=test_id))
+
     if 'prediction_file' not in request.files:
         flash('No file uploaded')
         return redirect(url_for('test_detail', test_id=test_id))

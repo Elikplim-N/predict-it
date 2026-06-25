@@ -17,12 +17,12 @@
             <textarea id="description" name="description" rows="4" required></textarea>
         </div>
         <div class="form-group">
-            <label for="start_date">Start Date:</label>
-            <input type="date" id="start_date" name="start_date" required>
+            <label for="start_date">Start Date &amp; Time:</label>
+            <input type="datetime-local" id="start_date" name="start_date" required>
         </div>
         <div class="form-group">
-            <label for="end_date">End Date:</label>
-            <input type="date" id="end_date" name="end_date" required>
+            <label for="end_date">End Date &amp; Time:</label>
+            <input type="datetime-local" id="end_date" name="end_date" required>
         </div>
         <div class="form-group">
             <label for="metric">Evaluation Metric:</label>
@@ -62,8 +62,8 @@
                     <tr>
                         <td>{{ test.id }}</td>
                         <td>{{ test.name }}</td>
-                        <td>{{ test.start_date }}</td>
-                        <td>{{ test.end_date }}</td>
+                        <td>{{ test.start_date|replace('T', ' ') }}</td>
+                        <td>{{ test.end_date|replace('T', ' ') }}</td>
                         <td>{{ test.metric }}</td>
                         <td>{{ submissions|selectattr('test_id', 'equalto', test.id)|list|length }}</td>
                         <td>

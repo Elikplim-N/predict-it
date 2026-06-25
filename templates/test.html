@@ -8,8 +8,8 @@
 <div class="competition-details">
     <p class="description">{{ test.description }}</p>
     <div class="meta-info">
-        <p><strong>Start Date:</strong> {{ test.start_date }}</p>
-        <p><strong>End Date:</strong> {{ test.end_date }}</p>
+        <p><strong>Start:</strong> {{ test.start_date|replace('T', ' ') }}</p>
+        <p><strong>End:</strong> {{ test.end_date|replace('T', ' ') }}</p>
         <p><strong>Evaluation Metric:</strong> {{ test.metric }}</p>
     </div>
 </div>
