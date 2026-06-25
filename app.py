@@ -292,6 +292,21 @@ def delete_test(test_id):
     flash('Test deleted successfully!')
     return '', 200
 
+@app.route('/admin/delete_submission/<int:submission_id>', methods=['POST'])
+def delete_submission(submission_id):
+    if not session.get('is_admin'):
+        return redirect(url_for('login'))
+
+    db = get_db_wrapper()
+    submission = db.execute('SELECT * FROM pi_submissions WHERE id = ?', (submission_id,)).fetchone()
+    db.execute('DELETE FROM pi_submissions WHERE id = ?', (submission_id,))
+    db.commit()
+
+    flash('Submission deleted successfully!')
+    if submission:
+        return redirect(url_for('leaderboard', test_id=submission['test_id']))
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/admin/edit_test/<int:test_id>', methods=['GET', 'POST'])
 def edit_test(test_id):
     if not session.get('is_admin'):
@@ -383,11 +398,34 @@ def submit_prediction(test_id):
         flash(f'Submission rejected: {error}')
         return redirect(url_for('test_detail', test_id=test_id))
 
-    db.execute('INSERT INTO pi_submissions (test_id, username, timestamp, score, filename) VALUES (?, ?, ?, ?, ?)',
-               (test_id, session['username'], datetime.now().isoformat(), score, file.filename))
-    db.commit()
+    # Keep only the single best submission per user per test. If the user has
+    # submitted before, replace the stored row only when the new score is an
+    # improvement; otherwise keep the existing best and discard the new one.
+    existing = db.execute(
+        'SELECT * FROM pi_submissions WHERE test_id = ? AND username = ?',
+        (test_id, session['username'])
+    ).fetchone()
 
-    flash(f'Submission successful! Score: {score:.4f}')
+    timestamp = datetime.now().isoformat()
+    if existing:
+        if _is_better_score(score, existing['score'], test['metric']):
+            db.execute(
+                'UPDATE pi_submissions SET timestamp = ?, score = ?, filename = ? WHERE id = ?',
+                (timestamp, score, file.filename, existing['id'])
+            )
+            db.commit()
+            flash(f'Submission successful! New best score: {score:.4f}')
+        else:
+            flash(f'Submission scored {score:.4f}, but your previous best of '
+                  f'{existing["score"]:.4f} was kept.')
+    else:
+        db.execute(
+            'INSERT INTO pi_submissions (test_id, username, timestamp, score, filename) VALUES (?, ?, ?, ?, ?)',
+            (test_id, session['username'], timestamp, score, file.filename)
+        )
+        db.commit()
+        flash(f'Submission successful! Score: {score:.4f}')
+
     return redirect(url_for('test_detail', test_id=test_id))
 
 
@@ -499,6 +537,15 @@ def _parse_id_value_csv(csv_text, label):
     if not data:
         raise ValueError(f'{label} contains no data rows.')
     return data
+
+
+def _is_better_score(new_score, old_score, metric):
+    """Return True if new_score is an improvement over old_score for the given
+    metric. Lower is better for error metrics (RMSE/MAE); higher is better for
+    everything else (e.g. accuracy)."""
+    if metric in ('rmse', 'mae'):
+        return new_score < old_score
+    return new_score > old_score
 
 
 def calculate_score(predictions_csv, ground_truth_csv, metric):
