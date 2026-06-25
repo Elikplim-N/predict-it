@@ -307,6 +307,18 @@ def delete_submission(submission_id):
         return redirect(url_for('leaderboard', test_id=submission['test_id']))
     return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/delete_all_submissions/<int:test_id>', methods=['POST'])
+def delete_all_submissions(test_id):
+    if not session.get('is_admin'):
+        return redirect(url_for('login'))
+
+    db = get_db_wrapper()
+    db.execute('DELETE FROM pi_submissions WHERE test_id = ?', (test_id,))
+    db.commit()
+
+    flash('All submissions for this test were deleted.')
+    return redirect(url_for('leaderboard', test_id=test_id))
+
 @app.route('/admin/edit_test/<int:test_id>', methods=['GET', 'POST'])
 def edit_test(test_id):
     if not session.get('is_admin'):

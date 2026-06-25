@@ -42,6 +42,13 @@
 
 <div class="actions">
     <a href="{{ url_for('download_leaderboard', test_id=test.id) }}" class="btn">Download CSV</a>
+    {% if leaderboard %}
+    <form method="POST" action="{{ url_for('delete_all_submissions', test_id=test.id) }}"
+          onsubmit="return confirm('Delete ALL submissions for {{ test.name }}? This cannot be undone.');"
+          style="display: inline; margin: 0;">
+        <button type="submit" class="btn" style="background: #dc3545;">Delete All Submissions</button>
+    </form>
+    {% endif %}
     <a href="{{ url_for('test_detail', test_id=test.id) }}" class="btn">Back to Test</a>
     <a href="{{ url_for('index') }}" class="btn btn-secondary">All Tests</a>
 </div>
