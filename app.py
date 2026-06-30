@@ -1,5 +1,6 @@
 import os
 import csv
+import hashlib
 import sqlite3
 from io import StringIO
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
@@ -131,11 +132,13 @@ def init_db():
                     score REAL NOT NULL,
                     filename TEXT,
                     filesize INTEGER,
+                    content TEXT,
                     FOREIGN KEY (test_id) REFERENCES pi_tests (id)
                 )
             ''')
-            # Add filesize to databases created before this column existed.
+            # Add columns to databases created before they existed.
             cursor.execute('ALTER TABLE pi_submissions ADD COLUMN IF NOT EXISTS filesize INTEGER')
+            cursor.execute('ALTER TABLE pi_submissions ADD COLUMN IF NOT EXISTS content TEXT')
             db.commit()
         else:
             db.execute('''
@@ -166,13 +169,16 @@ def init_db():
                     score REAL NOT NULL,
                     filename TEXT,
                     filesize INTEGER,
+                    content TEXT,
                     FOREIGN KEY (test_id) REFERENCES pi_tests (id)
                 )
             ''')
-            # Add filesize to databases created before this column existed.
+            # Add columns to databases created before they existed.
             existing_cols = [row[1] for row in db.execute('PRAGMA table_info(pi_submissions)').fetchall()]
             if 'filesize' not in existing_cols:
                 db.execute('ALTER TABLE pi_submissions ADD COLUMN filesize INTEGER')
+            if 'content' not in existing_cols:
+                db.execute('ALTER TABLE pi_submissions ADD COLUMN content TEXT')
             db.commit()
 
 _db_initialized = False
@@ -451,8 +457,8 @@ def submit_prediction(test_id):
     if existing:
         if _is_better_score(score, existing['score'], test['metric']):
             db.execute(
-                'UPDATE pi_submissions SET timestamp = ?, score = ?, filename = ?, filesize = ? WHERE id = ?',
-                (timestamp, score, file.filename, filesize, existing['id'])
+                'UPDATE pi_submissions SET timestamp = ?, score = ?, filename = ?, filesize = ?, content = ? WHERE id = ?',
+                (timestamp, score, file.filename, filesize, content, existing['id'])
             )
             db.commit()
             flash(f'Submission successful! New best score: {score:.4f}')
@@ -461,8 +467,8 @@ def submit_prediction(test_id):
                   f'{existing["score"]:.4f} was kept.')
     else:
         db.execute(
-            'INSERT INTO pi_submissions (test_id, username, timestamp, score, filename, filesize) VALUES (?, ?, ?, ?, ?, ?)',
-            (test_id, session['username'], timestamp, score, file.filename, filesize)
+            'INSERT INTO pi_submissions (test_id, username, timestamp, score, filename, filesize, content) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (test_id, session['username'], timestamp, score, file.filename, filesize, content)
         )
         db.commit()
         flash(f'Submission successful! Score: {score:.4f}')
@@ -506,8 +512,63 @@ def leaderboard(test_id):
         leaderboard_data.sort(key=lambda x: x['score'])
     else:
         leaderboard_data.sort(key=lambda x: x['score'], reverse=True)
-    
-    return render_template('leaderboard.html', test=test, leaderboard=leaderboard_data)
+
+    # Flag exact-copy submissions: group the entries whose stored file content
+    # is byte-for-byte identical. dup_groups maps a submission id to a short
+    # label (A, B, ...) shared by every entry with the same content.
+    dup_groups = _find_duplicate_content_groups(leaderboard_data)
+
+    return render_template('leaderboard.html', test=test,
+                           leaderboard=leaderboard_data, dup_groups=dup_groups)
+
+
+def _find_duplicate_content_groups(entries):
+    """Given leaderboard entries, return {submission_id: group_label} for every
+    entry whose stored content is identical to at least one other entry."""
+    by_hash = {}
+    for entry in entries:
+        content = entry['content']
+        if not content:
+            continue
+        digest = hashlib.sha256(content.encode('utf-8')).hexdigest()
+        by_hash.setdefault(digest, []).append(entry['id'])
+
+    dup_groups = {}
+    label_ord = ord('A')
+    for ids in by_hash.values():
+        if len(ids) > 1:
+            label = chr(label_ord)
+            label_ord += 1
+            for sid in ids:
+                dup_groups[sid] = label
+    return dup_groups
+
+@app.route('/submission/<int:submission_id>/download')
+def download_submission(submission_id):
+    """Let an admin download the raw prediction file a user submitted, so they
+    can inspect or diff it when investigating suspected cheating."""
+    if not session.get('is_admin'):
+        flash('Admin access required')
+        return redirect(url_for('login'))
+
+    db = get_db_wrapper()
+    submission = db.execute('SELECT * FROM pi_submissions WHERE id = ?', (submission_id,)).fetchone()
+
+    if not submission:
+        flash('Submission not found')
+        return redirect(url_for('admin_dashboard'))
+
+    if not submission['content']:
+        flash('No stored file for this submission (it predates file storage).')
+        return redirect(url_for('leaderboard', test_id=submission['test_id']))
+
+    from flask import make_response
+    response = make_response(submission['content'])
+    name = submission['filename'] or f'submission_{submission_id}.csv'
+    response.headers['Content-Disposition'] = f'attachment; filename={submission["username"]}_{name}'
+    response.headers['Content-Type'] = 'text/csv'
+    return response
+
 
 @app.route('/leaderboard/<int:test_id>/download')
 def download_leaderboard(test_id):

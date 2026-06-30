@@ -16,7 +16,9 @@
     {% endfor %}
     <p class="empty-state" style="margin-bottom: 1rem;">
         Upload sizes are shown to help spot cheating. Sizes shared by more than
-        one user are flagged in red.
+        one user are flagged in red, and submissions whose file contents are
+        byte-for-byte identical are tagged as <strong>copies</strong>. Use
+        Download to inspect a user's raw file.
     </p>
     <div class="table-container">
         <table class="leaderboard-table">
@@ -38,14 +40,26 @@
                     <td>{{ entry.username }}</td>
                     <td>{{ "%.4f"|format(entry.score) }}</td>
                     <td>{{ entry.timestamp }}</td>
-                    <td>{{ entry.filename or '—' }}</td>
+                    <td>
+                        {{ entry.filename or '—' }}
+                        {% if dup_groups.get(entry.id) %}
+                        <span style="background: #dc3545; color: #fff; padding: 1px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;"
+                              title="Identical file contents to other submissions in copy group {{ dup_groups[entry.id] }}">
+                            copy {{ dup_groups[entry.id] }}
+                        </span>
+                        {% endif %}
+                    </td>
                     <td {% if entry.filesize is not none and size_counts[entry.filesize] > 1 %}style="color: #dc3545; font-weight: bold;" title="Same upload size as {{ size_counts[entry.filesize] - 1 }} other submission(s)"{% endif %}>
                         {{ entry.filesize|filesize }}
                     </td>
-                    <td>
+                    <td style="white-space: nowrap;">
+                        {% if entry.content %}
+                        <a href="{{ url_for('download_submission', submission_id=entry.id) }}"
+                           class="btn btn-small">Download</a>
+                        {% endif %}
                         <form method="POST" action="{{ url_for('delete_submission', submission_id=entry.id) }}"
                               onsubmit="return confirm('Delete {{ entry.username }}\'s submission? This cannot be undone.');"
-                              style="margin: 0;">
+                              style="display: inline; margin: 0;">
                             <button type="submit" class="btn btn-small" style="background: #dc3545;">Delete</button>
                         </form>
                     </td>
