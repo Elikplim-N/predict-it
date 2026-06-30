@@ -130,9 +130,12 @@ def init_db():
                     timestamp TEXT NOT NULL,
                     score REAL NOT NULL,
                     filename TEXT,
+                    filesize INTEGER,
                     FOREIGN KEY (test_id) REFERENCES pi_tests (id)
                 )
             ''')
+            # Add filesize to databases created before this column existed.
+            cursor.execute('ALTER TABLE pi_submissions ADD COLUMN IF NOT EXISTS filesize INTEGER')
             db.commit()
         else:
             db.execute('''
@@ -162,9 +165,14 @@ def init_db():
                     timestamp TEXT NOT NULL,
                     score REAL NOT NULL,
                     filename TEXT,
+                    filesize INTEGER,
                     FOREIGN KEY (test_id) REFERENCES pi_tests (id)
                 )
             ''')
+            # Add filesize to databases created before this column existed.
+            existing_cols = [row[1] for row in db.execute('PRAGMA table_info(pi_submissions)').fetchall()]
+            if 'filesize' not in existing_cols:
+                db.execute('ALTER TABLE pi_submissions ADD COLUMN filesize INTEGER')
             db.commit()
 
 _db_initialized = False
@@ -176,6 +184,22 @@ def before_first_request():
     if not _db_initialized:
         init_db()
         _db_initialized = True
+
+def format_filesize(num_bytes):
+    """Render a byte count as a short human-readable string for templates."""
+    if num_bytes is None:
+        return '—'
+    size = float(num_bytes)
+    for unit in ('B', 'KB', 'MB'):
+        if size < 1024 or unit == 'MB':
+            if unit == 'B':
+                return f'{int(size)} {unit}'
+            return f'{size:.1f} {unit}'
+        size /= 1024
+
+
+app.jinja_env.filters['filesize'] = format_filesize
+
 
 @app.errorhandler(413)
 def file_too_large(error):
@@ -400,10 +424,15 @@ def submit_prediction(test_id):
         return redirect(url_for('test_detail', test_id=test_id))
     
     try:
-        content = file.read().decode('utf-8')
+        raw = file.read()
+        content = raw.decode('utf-8')
     except UnicodeDecodeError:
         flash('Could not read the file. Please upload a valid UTF-8 encoded CSV.')
         return redirect(url_for('test_detail', test_id=test_id))
+
+    # Record the raw upload size in bytes so admins can spot suspicious
+    # submissions (e.g. several users uploading byte-identical files).
+    filesize = len(raw)
 
     score, error = calculate_score(content, test['ground_truth'], test['metric'])
     if error:
@@ -422,8 +451,8 @@ def submit_prediction(test_id):
     if existing:
         if _is_better_score(score, existing['score'], test['metric']):
             db.execute(
-                'UPDATE pi_submissions SET timestamp = ?, score = ?, filename = ? WHERE id = ?',
-                (timestamp, score, file.filename, existing['id'])
+                'UPDATE pi_submissions SET timestamp = ?, score = ?, filename = ?, filesize = ? WHERE id = ?',
+                (timestamp, score, file.filename, filesize, existing['id'])
             )
             db.commit()
             flash(f'Submission successful! New best score: {score:.4f}')
@@ -432,8 +461,8 @@ def submit_prediction(test_id):
                   f'{existing["score"]:.4f} was kept.')
     else:
         db.execute(
-            'INSERT INTO pi_submissions (test_id, username, timestamp, score, filename) VALUES (?, ?, ?, ?, ?)',
-            (test_id, session['username'], timestamp, score, file.filename)
+            'INSERT INTO pi_submissions (test_id, username, timestamp, score, filename, filesize) VALUES (?, ?, ?, ?, ?, ?)',
+            (test_id, session['username'], timestamp, score, file.filename, filesize)
         )
         db.commit()
         flash(f'Submission successful! Score: {score:.4f}')
@@ -517,9 +546,10 @@ def download_leaderboard(test_id):
     # Generate CSV
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Rank', 'Username', 'Score', 'Timestamp'])
+    writer.writerow(['Rank', 'Username', 'Score', 'Timestamp', 'Filename', 'Upload Size (bytes)'])
     for idx, entry in enumerate(leaderboard_data, 1):
-        writer.writerow([idx, entry['username'], entry['score'], entry['timestamp']])
+        writer.writerow([idx, entry['username'], entry['score'], entry['timestamp'],
+                         entry['filename'], entry['filesize']])
     
     from flask import make_response
     csv_output = output.getvalue()
